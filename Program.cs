@@ -17,8 +17,8 @@ namespace stencil
         public static string outputImage = "images/face3.jpg";
         public static List<Point> ptTrack = new List<Point>(); // for keeping track a trail of 4 points to detect loops
         public static Bitmap workImage;
-        public static Color foreCol = Color.FromArgb(255,0,0,0);
-        public static Color bakCol = Color.FromArgb(255,255,255,255);
+        public static Color foreCol = Color.FromArgb(255, 0, 0, 0);
+        public static Color bakCol = Color.FromArgb(255, 255, 255, 255);
 
         public static void Main()
         {
@@ -35,71 +35,48 @@ namespace stencil
                 workImage = new Bitmap(image, trgtWidth, trgtHeight);
 
                 picToPixelBW(workImage);
-                deGranB(workImage,3);
-                deGranW(workImage,3);
-                deGranB(workImage,2);
-                deGranW(workImage,2);
-                deGranB(workImage,1);
-                deGranW(workImage,1);
+                deGranB(workImage, 3);
+                deGranW(workImage, 3);
+                deGranB(workImage, 2);
+                deGranW(workImage, 2);
+                deGranB(workImage, 1);
+                deGranW(workImage, 1);
                 //corFilW(newImage);
                 //corFilB(newImage);*/
                 outlineStuff();
-                
+
                 workImage.Save(outputImage);
             }
             catch (Exception e) { System.Console.WriteLine(e.Message); }
         }
         public static void outlineStuff()
         {
-            for (int g = 0; g < 4; g++)
-                {
-                    Point pt = new Point(g, g);
-                    ptTrack.Add(pt);
-                    //System.Console.WriteLine(ptTrack.Count);
-                }
+            /*for (int g = 0; g < 4; g++)
+            {
+                Point pt = new Point(g, g);
+                ptTrack.Add(pt);
+                //System.Console.WriteLine(ptTrack.Count);
+            }*/
+            Pen pn = new Pen(Color.Red);
+            FillMode newFillMode = FillMode.Winding;
+            float tension = .2F;
 
-                //drawOutline(letsTryThis());
-                
-                    SolidBrush redBrush = new SolidBrush(Color.Red);
-                    Pen pn = new Pen(Color.Red);
-             
-                    // Set fill mode.
-                    FillMode newFillMode = FillMode.Winding;
-                            
-                    // Set tension.
-                    float tension = .2F;
-                            
-                    // Fill curve on screen.
-                    using Graphics e = Graphics.FromImage(workImage);
-                    e.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-                    Point[] outLine = LisToPoints(letsTryThis());
-                    //drawOutline(LisToPoints(letsTryThis()));
-                    //e.GraphicsPath(LisToPoints(letsTryThis()));
-                    GraphicsPath pat = new GraphicsPath();
-                    //e.DrawPath(pn, pat);
-                    e.DrawClosedCurve(pn, outLine, 0.2F, FillMode.Winding);
-                    HatchBrush hBrush = new HatchBrush(
-        HatchStyle.DiagonalCross,
-        Color.Black,
-            Color.White);
+            using Graphics e = Graphics.FromImage(workImage);
+            //e.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
 
-                    //e.FillClosedCurve(hBrush, outLine, newFillMode, tension);
-                    
+            //Point[] outLine = LisToPoints(letsTryThis());
+           // e.DrawClosedCurve(pn, outLine, 0.2F, FillMode.Winding);
+            //HatchBrush hBrush = new HatchBrush(HatchStyle.DiagonalCross,Color.Black,Color.White);
+            drawOutline(letsTryThis());
         }
         public static Point[] LisToPoints(List<Point> pList) // converts a List of Points into Array of Points
-        {   
-            List<Point> smList = new();
-            for(int i = 0; i < pList.Count; i += 20) // reduce pList using only every 20th Point
+        {
+            Point[] pArray = new Point[pList.Count];
+            for (int i = 0; i < pList.Count; i++)
             {
-                smList.Add(pList[i]);
-            }
-            Point[] pArray = new Point[smList.Count];
-            for(int i=0; i < smList.Count; i++)
-            {
-                pArray[i] = new Point(smList[i].X, smList[index: i].Y);
+                pArray[i] = new Point(pList[i].X, pList[index: i].Y);
             }
             return pArray;
-            //return smList;
         }
         public static void drawOutline(List<Point> ptList) // draws all pixels in the list
         {
@@ -108,14 +85,15 @@ namespace stencil
                 workImage.SetPixel(item.X, item.Y, Color.FromArgb(255, 255, 0, 0));
             }
         }
+        
         public static List<Point> letsTryThis()
         {
+            int skiPoints = 1;
             List<Point> drawOutln = new List<Point>();
-            int outLnCount = 0;
             bool done = false;
-            for (int x = 1; x < workImage.Width - 5; x++)
+            for (int x = 5; x < workImage.Width - 5; x++)
             {
-                for (int y = 3; y < workImage.Height - 5; y++)
+                for (int y = 3; y < workImage.Height - 1; y++)
                 {
                     // STARTING PIXEL - if there is a black pixel next to a white pixel
                     if (workImage.GetPixel(x, y) == bakCol
@@ -127,18 +105,17 @@ namespace stencil
                         Point prev = new Point(x, y);
                         drawOutln.Add(start);//START PIXEL
                         //System.Console.WriteLine("start is " + start);
-                        //while(next != start)
-                        for (int i = 0; i < 2800; i++)
+                        var outLnCount = 0;
+                        while(next != start)
+                        //for (int i = 0; i < 2500; i++)
                         {
                             next = NextPix(cur);  //FIND NEXT PIXEL
                             //System.Console.WriteLine("cur is " + next);
-                            if (ptTrack.Count > 4) { ptTrack.RemoveAt(4); }  // only need 3
-                            outLnCount += 20;
-                            int h = outLnCount%20;
-                            
+                            if (ptTrack.Count > 3) { ptTrack.RemoveAt(3); }  // only need 
                             ptTrack.Insert(0, next); // adding to Pointtrail to detect loops
-                            if(h == 0){
-                            drawOutln.Add(next);}  //ADD IT TO drawing line
+                            outLnCount += 1;
+                            if (outLnCount % skiPoints == 0)   // every n'th point gets added to outline
+                            { drawOutln.Add(next); }  //ADD IT TO drawing line
                             prev = cur;
                             cur = next;
                         }
@@ -151,140 +128,101 @@ namespace stencil
             }
             return drawOutln;
         }
-
-        public static Point NextPix(Point px)
+        public static Point NextPix(Point currentPoint)
         {
-            List<int> edges = new List<int>();
-            bool repeat = false;
-            for (int i = 0; i <= 7; i++)// testing 8 positions around current point
+            // Iterate through 8 positions around the current point to find the next edge point
+            for (int direction = 0; direction <= 7; direction++)
             {
-                repeat=false;
-                //System.Console.WriteLine("testing position " + i);
-                Point test = ConvFromInt(px, i); // returns a Point based on Spider#
-                if(ptTrack.Contains(test)){repeat = true;}
-                if (!repeat && workImage.GetPixel(test.X, test.Y) == foreCol)
+                Point adjacentPoint = GetAdjacentPoint(currentPoint, direction);
+
+                if (IsPointValid(adjacentPoint) && IsPointOnEdge(adjacentPoint, direction))
                 {
-                    if (IsEdge(test, i) || isBounds(test)) //is edge or image bounds?
-                    {
-                        return test;
-                    }
+                    return adjacentPoint;
                 }
             }
-            return px;
+
+            // Return the current point if no valid next point is found
+            return currentPoint;
         }
+
+        // Helper method to check if the point is valid (not out of bounds and not a repeated point)
+        private static bool IsPointValid(Point pt)
+        {
+            return !isOutBounds(pt) && !ptTrack.Contains(pt);
+        }
+
+        // Helper method to check if the point is on the edge of the shape
+        private static bool IsPointOnEdge(Point pt, int direction)
+        {
+            return workImage.GetPixel(pt.X, pt.Y) == foreCol && IsEdge(pt, direction);
+        }
+
+        // Helper method to get an adjacent point based on the current point and direction
+        private static Point GetAdjacentPoint(Point currentPoint, int direction)
+        {
+            return ConvFromInt(currentPoint, direction);
+        }
+
+    
         public static bool isBounds(Point pt) // checks if Point is on the outside edge of image
         {
-            if(pt.X == 3 || pt.X == workImage.Width-3){return true;}
-            if(pt.Y == 3 || pt.Y == workImage.Height-3){return true;}
+            if (pt.X == 0 || pt.X == workImage.Width - 10) { return true; }
+            if (pt.Y == 0 || pt.Y == workImage.Height - 1) { return true; }
             return false;
         }
-         public static bool IsEdge(Point test, int dir)
+        public static bool isOutBounds(Point pt) // checks if Point is on the outside edge of image
+        {
+            if (pt.X < 0 || pt.X > workImage.Width - 10) { return true; }
+            if (pt.Y < 0 || pt.Y > workImage.Height - 1) { return true; }
+            return false;
+        }
+        public static bool IsEdge(Point test, int dir)
+        {
+            // Check if the point is at the boundary of the image
+            if (IsAtImageBoundary(test))
+            {
+                return true;
+            }
+
+            // Define the directions to check based on the current direction
+            int[] directionsToCheck = GetDirectionsToCheck(dir);
+
+            // Check if any of the surrounding pixels in the specified directions are of background color
+            foreach (var direction in directionsToCheck)
+            {
+                Point adjacentPoint = ConvFromInt(test, direction);
+                if (workImage.GetPixel(adjacentPoint.X, adjacentPoint.Y) == bakCol)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Helper method to check if a point is at the boundary of the image
+        private static bool IsAtImageBoundary(Point pt)
+        {
+            return pt.X == 0 || pt.X == workImage.Width - 1 || pt.Y == 0 || pt.Y == workImage.Height - 1;
+        }
+
+        // Helper method to determine which directions to check based on the current direction
+        private static int[] GetDirectionsToCheck(int dir)
         {
             switch (dir)
             {
-                case 0:
-                    //2 or 6
-                    if (workImage.GetPixel(ConvFromInt(test, 2).X, ConvFromInt(test, 2).Y) == bakCol
-                     || workImage.GetPixel(ConvFromInt(test, 6).X, ConvFromInt(test, 6).Y) == bakCol
-                    )
-                    {
-                        return true;
-                    }
-                    return false;
-
-                case 1:
-                    //4 or 6
-                    if (workImage.GetPixel(ConvFromInt(test, 4).X, ConvFromInt(test, 4).Y) == bakCol
-                     || workImage.GetPixel(ConvFromInt(test, 6).X, ConvFromInt(test, 6).Y) == bakCol
-                    )
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-
-                case 2:
-                    //0 or 4
-                    if (workImage.GetPixel(ConvFromInt(test, 0).X, ConvFromInt(test, 0).Y) == bakCol
-                     || workImage.GetPixel(ConvFromInt(test, 4).X, ConvFromInt(test, 4).Y) == bakCol
-                    )
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-
-                case 3:
-                    //0 or 6
-                    if (workImage.GetPixel(ConvFromInt(test, 0).X, ConvFromInt(test, 0).Y) == bakCol
-                     || workImage.GetPixel(ConvFromInt(test, 6).X, ConvFromInt(test, 6).Y) == bakCol
-                    )
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-
-                case 4:
-                    // 2 or 6
-                    if (workImage.GetPixel(ConvFromInt(test, 2).X, ConvFromInt(test, 2).Y) == bakCol
-                     || workImage.GetPixel(ConvFromInt(test, 6).X, ConvFromInt(test, 6).Y) == bakCol
-                    )
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-
-                case 5:
-                    //0 or 2
-                    if (workImage.GetPixel(ConvFromInt(test, 0).X, ConvFromInt(test, 0).Y) == bakCol
-                     || workImage.GetPixel(ConvFromInt(test, 2).X, ConvFromInt(test, 2).Y) == bakCol
-                    )
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-
-                case 6:
-                    //0 or 4
-                    if (workImage.GetPixel(ConvFromInt(test, 0).X, ConvFromInt(test, 0).Y) == bakCol
-                     || workImage.GetPixel(ConvFromInt(test, 4).X, ConvFromInt(test, 4).Y) == bakCol)
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-
-                case 7:
-                    //2 or 4
-                    if (workImage.GetPixel(ConvFromInt(test, 2).X, ConvFromInt(test, 2).Y) == bakCol
-                     || workImage.GetPixel(ConvFromInt(test, 4).X, ConvFromInt(test, 4).Y) == bakCol
-                    )
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                default:
-                    return false;
+                case 0: return new int[] { 2, 6 };
+                case 1: return new int[] { 4, 6 };
+                case 2: return new int[] { 0, 4 };
+                case 3: return new int[] { 0, 6 };
+                case 4: return new int[] { 2, 6 };
+                case 5: return new int[] { 0, 2 };
+                case 6: return new int[] { 0, 4 };
+                case 7: return new int[] { 2, 4 };
+                default: return new int[] { };
             }
         }
+
         public static void picToPixelBW(Bitmap img)
 
         {
