@@ -1,24 +1,21 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-//using System.Drawing.Common;
-using System.Drawing.Imaging;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.InteropServices;
-using System.Transactions;
-using System.Xml;
 
 namespace stencil
 {
-    public class Program
+    partial class Program
     {
         //public static int granule = 1; //max4
         public static string sourceImage = "C:/Users/User/Pictures/face3.jpg";
         public static string outputImage = "images/face3.jpg";
-        public static List<Point> ptTrack = new List<Point>(); // for keeping track a trail of 4 points to detect loops
+        public static List<Point> pointTrack = new List<Point>(); // tracks last 3 Points, preventing loops and backtracking
         public static Bitmap workImage;
+        // set foreground and background colors
         public static Color foreCol = Color.FromArgb(255, 0, 0, 0);
         public static Color bakCol = Color.FromArgb(255, 255, 255, 255);
+        // set shape outline color
+        public static Color outlineCol = Color.FromArgb(255, 255, 0, 0);
 
         public static void Main()
         {
@@ -29,102 +26,198 @@ namespace stencil
                 using Bitmap image = new Bitmap(sourceImage, true);
                 int trgtHeight = (int)480;
                 int trgtWidth = (int)640;
-                int lgHeight = 768;
-                int lgWidth = 1024;
 
                 workImage = new Bitmap(image, trgtWidth, trgtHeight);
+                picToPixelLockB(workImage);
 
-                picToPixelBW(workImage);
-                deGranB(workImage, 3);
-                deGranW(workImage, 3);
-                deGranB(workImage, 2);
-                deGranW(workImage, 2);
-                deGranB(workImage, 1);
-                deGranW(workImage, 1);
-                //corFilW(newImage);
-                //corFilB(newImage);*/
-                outlineStuff();
+                deGran(workImage, 3);
+                deGran(workImage, 3, false);
+                deGran(workImage, 2);
+                deGran(workImage, 2, false);
+                //deGran(workImage, 1);
+                //deGran(workImage, 1,false);
+                //OutlineShapes();
+                //PointstartPt = FindShapeStart();
+                //var pointsForShaping = ShapePointList(FindShapeStart());
+                //CreateShape(ListToCurveArray(pointsForShaping));
+                OutlineShapes();
 
                 workImage.Save(outputImage);
             }
             catch (Exception e) { System.Console.WriteLine(e.Message); }
         }
-        public static void outlineStuff()
+        public static void CreateShapes()
         {
-            /*for (int g = 0; g < 4; g++)
+            List<Point> allOutlinePoints = new();
+            Point startPt = new(0, 1);
+            Point nullPt = new(0, 0);
+            startPt = FindListShapeStart();
+            System.Console.WriteLine("start is " + startPt);
+            while (startPt != nullPt)
             {
-                Point pt = new Point(g, g);
-                ptTrack.Add(pt);
-                //System.Console.WriteLine(ptTrack.Count);
-            }*/
-            Pen pn = new Pen(Color.Red);
+                List<Point> pointsForShaping = ShapePointList(startPt); //get Point list of the first outline
+                System.Console.WriteLine("list is " + pointsForShaping.Count());
+                Point[] shapeArray = ListToCurveArray(pointsForShaping); //convert to Array
+                System.Console.WriteLine("array  done");
+                allOutlinePoints.AddRange(pointsForShaping); //add Points to the outlines of all shapes
+                System.Console.WriteLine("points added to allPoint list");
+                if (shapeArray.Length > 3) // need at least 3 Points to draw a closed curve
+                {
+                    CreateShape(shapeArray); //draw filled curve
+                    System.Console.WriteLine("shape drawn"); 
+                }
+            }
+        }
+        public static void CreateShape(Point[] shapePoints)
+        {
+            using Graphics e = Graphics.FromImage(workImage);
+            Pen pn = new Pen(Color.Blue);
             FillMode newFillMode = FillMode.Winding;
             float tension = .2F;
 
-            using Graphics e = Graphics.FromImage(workImage);
-            //e.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+            e.DrawClosedCurve(pn, shapePoints, 0.2F, FillMode.Winding);
+            e.FillClosedCurve(new SolidBrush(pn.Color), shapePoints, newFillMode, tension);
 
-            //Point[] outLine = LisToPoints(letsTryThis());
-           // e.DrawClosedCurve(pn, outLine, 0.2F, FillMode.Winding);
             //HatchBrush hBrush = new HatchBrush(HatchStyle.DiagonalCross,Color.Black,Color.White);
-            drawOutline(letsTryThis());
         }
-        public static Point[] LisToPoints(List<Point> pList) // converts a List of Points into Array of Points
+
+        // converts a List of Points into Array of Points
+        public static Point[] ListToCurveArray(List<Point> pointList)
         {
-            Point[] pArray = new Point[pList.Count];
-            for (int i = 0; i < pList.Count; i++)
+            int skippPoints = 15;
+            List<Point> outlinePoints = new List<Point>();
+            for (int i = 0; i < pointList.Count - 1; i += skippPoints)
             {
-                pArray[i] = new Point(pList[i].X, pList[index: i].Y);
+                outlinePoints.Add(pointList[i]);
+            }
+
+            Point[] pArray = new Point[outlinePoints.Count];
+            for (int i = 0; i < outlinePoints.Count; i++)
+            {
+                pArray[i] = new Point(outlinePoints[i].X, outlinePoints[index: i].Y);
             }
             return pArray;
         }
-        public static void drawOutline(List<Point> ptList) // draws all pixels in the list
+        // draws the outlines of all shapes in the image
+        public static void OutlineShapes()
+        {
+            //e.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+            Point startPt = new(0, 1);
+            Point nullPt = new(0, 0);
+            startPt = FindShapeStart();
+            drawOutline(ShapePointList(startPt));
+            while (startPt != nullPt)
+            {
+                System.Console.WriteLine("start is " + startPt);
+                drawOutline(ShapePointList(startPt));
+                //System.Console.WriteLine("shape has points: " + ShapePointList(startPt).Count());
+                startPt = FindShapeStart();
+            }
+        }
+        // draws all pixels in the list
+        public static void drawOutline(List<Point> ptList)
         {
             foreach (var item in ptList)
             {
-                workImage.SetPixel(item.X, item.Y, Color.FromArgb(255, 255, 0, 0));
+                workImage.SetPixel(item.X, item.Y, outlineCol);
             }
         }
-        
-        public static List<Point> letsTryThis()
+        public static Point FindListShapeStart(List<Point> outlinePoints = null)
         {
-            int skiPoints = 1;
-            List<Point> drawOutln = new List<Point>();
-            bool done = false;
+            Point nullPt = new Point(0, 0);
+            bool markedArea = false;
+            bool wasLastPxMarked = false;
             for (int x = 5; x < workImage.Width - 5; x++)
             {
-                for (int y = 3; y < workImage.Height - 1; y++)
+                for (int y = 29; y < workImage.Height - 1; y++)
                 {
-                    // STARTING PIXEL - if there is a black pixel next to a white pixel
-                    if (workImage.GetPixel(x, y) == bakCol
-                     && workImage.GetPixel(x + 1, y) == foreCol)
+                    if (outlinePoints != null)
                     {
-                        Point start = new Point(x + 1, y);
-                        Point cur = new Point(x + 1, y);
-                        Point next = new Point(x, y);
-                        Point prev = new Point(x, y);
-                        drawOutln.Add(start);//START PIXEL
-                        //System.Console.WriteLine("start is " + start);
-                        var outLnCount = 0;
-                        while(next != start)
-                        //for (int i = 0; i < 2500; i++)
+                        Point testPt = new(x, y);
+                        if (outlinePoints.Contains(testPt))
                         {
-                            next = NextPix(cur);  //FIND NEXT PIXEL
-                            //System.Console.WriteLine("cur is " + next);
-                            if (ptTrack.Count > 3) { ptTrack.RemoveAt(3); }  // only need 
-                            ptTrack.Insert(0, next); // adding to Pointtrail to detect loops
-                            outLnCount += 1;
-                            if (outLnCount % skiPoints == 0)   // every n'th point gets added to outline
-                            { drawOutln.Add(next); }  //ADD IT TO drawing line
-                            prev = cur;
-                            cur = next;
+                            if (!wasLastPxMarked)
+                            {
+                                if (markedArea == false) { markedArea = true;break; }
+                                if (markedArea == true) { markedArea = false; }
+                            }
+                            wasLastPxMarked = true;
                         }
-                        //System.Console.WriteLine("done first");
-                        return drawOutln;
+                        else { wasLastPxMarked = false; }
                     }
-                    if (done) { break; }
+                    if (!markedArea)
+                    {
+                        // STARTING PIXEL - if there is a black pixel next to a white pixel
+                        if (workImage.GetPixel(x, y) == bakCol && workImage.GetPixel(x + 1, y) == foreCol)
+                        {
+                            Point startPt = new(x + 1, y);
+                            return startPt;
+                        }
+                    }
                 }
-                if (done) { break; }
+            }
+            System.Console.WriteLine("no more shapes");
+            return nullPt;
+        }
+        public static Point FindShapeStart()
+        {
+            Point nullPt = new Point(0, 0);
+            bool markedArea = false;
+            bool wasLastPxMarked = false;
+            for (int x = 5; x < workImage.Width - 5; x++)
+            {
+                for (int y = 29; y < workImage.Height - 1; y++)
+                {
+                    if (workImage.GetPixel(x, y) == outlineCol)
+                    {
+                        if (!wasLastPxMarked)
+                        {
+                            if (markedArea == false) { markedArea = true;break; }
+                            if (markedArea == true) { markedArea = false; }
+                        }
+                        wasLastPxMarked = true;
+                    }
+                    else { wasLastPxMarked = false; }
+                    if (!markedArea)
+                    {
+                        // STARTING PIXEL - if there is a black pixel next to a white pixel
+                        if (workImage.GetPixel(x, y) == bakCol && workImage.GetPixel(x + 1, y) == foreCol)
+                        {
+                            Point startPt = new(x + 1, y);
+                            return startPt;
+                        }
+                    }
+                }
+            }
+            System.Console.WriteLine("no more shapes");
+            return nullPt;
+        }
+        // creates a List of outline points for the startPoint
+        public static List<Point> ShapePointList(Point startPoint)
+        {
+            //int skiPoints = 5; // number of points to skip for shape creation
+            List<Point> drawOutln = new List<Point>();
+            Point start = startPoint;
+            Point cur = startPoint;
+            Point next = new Point(startPoint.X - 1, startPoint.Y);
+            drawOutln.Add(start);//START PIXEL
+            pointTrack.Insert(0, start); // tracks last 3 Points, preventing loops and backtracking
+            var outLnCount = 0;
+            int skipPoints = 1;
+            while (next != start)
+            //for (int i = 0; i < 2500; i++)
+            {
+                next = NextPix(cur);  //FIND NEXT PIXEL
+                if (pointTrack.Count > 3) { pointTrack.RemoveAt(3); }  // only need 3
+                pointTrack.Insert(0, next); // adding to Point trail to detect loops
+                ///OUTLINE
+                outLnCount += 1;
+                if (outLnCount % skipPoints == 0)
+                {   // every n'th point gets added to outline
+                    drawOutln.Add(next);
+                }  //ADD IT TO drawing line
+                cur = next;
+                ///OUTLINE
             }
             return drawOutln;
         }
@@ -148,7 +241,7 @@ namespace stencil
         // Helper method to check if the point is valid (not out of bounds and not a repeated point)
         private static bool IsPointValid(Point pt)
         {
-            return !isOutBounds(pt) && !ptTrack.Contains(pt);
+            return !isOutBounds(pt) && !pointTrack.Contains(pt);
         }
 
         // Helper method to check if the point is on the edge of the shape
@@ -163,17 +256,10 @@ namespace stencil
             return ConvFromInt(currentPoint, direction);
         }
 
-    
-        public static bool isBounds(Point pt) // checks if Point is on the outside edge of image
-        {
-            if (pt.X == 0 || pt.X == workImage.Width - 10) { return true; }
-            if (pt.Y == 0 || pt.Y == workImage.Height - 1) { return true; }
-            return false;
-        }
         public static bool isOutBounds(Point pt) // checks if Point is on the outside edge of image
         {
-            if (pt.X < 0 || pt.X > workImage.Width - 10) { return true; }
-            if (pt.Y < 0 || pt.Y > workImage.Height - 1) { return true; }
+            if (pt.X < 0 || pt.X > workImage.Width - 1) { return true; }//-10
+            if (pt.Y < 0 || pt.Y > workImage.Height - 1) { return true; }//-1
             return false;
         }
         public static bool IsEdge(Point test, int dir)
@@ -222,52 +308,53 @@ namespace stencil
                 default: return new int[] { };
             }
         }
+        // converts image to black and white based on pixel brightness
 
-        public static void picToPixelBW(Bitmap img)
-
+        public static void picToPixelLockB(Bitmap img)
         {
-            for (int x = 0; x < img.Width; x++)
+            // Lock the bitmap's bits
+            Rectangle rect = new Rectangle(0, 0, img.Width, img.Height);
+            System.Drawing.Imaging.BitmapData bmpData = img.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadWrite, img.PixelFormat);
+
+            // Get the address of the first line
+            IntPtr ptr = bmpData.Scan0;
+
+            // Declare an array to hold the bytes of the bitmap
+            int bytes = Math.Abs(bmpData.Stride) * img.Height;
+            byte[] rgbValues = new byte[bytes];
+
+            // Copy the RGB values into the array
+            System.Runtime.InteropServices.Marshal.Copy(ptr, rgbValues, 0, bytes);
+
+            // Determine the number of bytes per pixel (assuming 32bpp format)
+            int bpp = System.Drawing.Image.GetPixelFormatSize(img.PixelFormat) / 8;
+
+            for (int i = 0; i < rgbValues.Length; i += bpp)
             {
-                for (int y = 0; y < img.Height; y++)
+                // Compute the brightness as the average of the RGB components
+                float brightness = (rgbValues[i] + rgbValues[i + 1] + rgbValues[i + 2]) / 3f / 255f;
+                byte colorValue = brightness >= 0.5 ? (byte)255 : (byte)0;
+
+                // Set the pixel to black or white
+                rgbValues[i] = colorValue;     // Blue component
+                rgbValues[i + 1] = colorValue; // Green component
+                rgbValues[i + 2] = colorValue; // Red component
+
+                // If the image has an alpha component (32bpp), preserve it
+                if (bpp == 4)
                 {
-                    Color pixelColor = img.GetPixel(x, y);
-                    float brig = pixelColor.GetBrightness();
-                    if (brig >= .5) { pixelColor = Color.White; }
-                    if (brig < .5) { pixelColor = Color.Black; }
-                    img.SetPixel(x, y, pixelColor);
+                    rgbValues[i + 3] = 255; // Alpha component
                 }
             }
-        }
-        public static void deGranOld(Bitmap img)
-        {
-            for (int x = 1; x < img.Width - 2; x++)
-            {
-                for (int y = 0; y < img.Height; y++)
-                {
-                    Color prev = img.GetPixel(x - 1, y);
-                    Color pix = img.GetPixel(x, y);
-                    Color prox = img.GetPixel(x + 1, y);
-                    Color proxx = img.GetPixel(x + 2, y);
-                    if (pix == foreCol)
-                    {
-                        if (prev == bakCol
-                        )
-                        {
-                            if (prox == foreCol)
-                            {
-                                if (proxx == bakCol
-                                )
-                                {
-                                    img.SetPixel(x, y, Color.White);
-                                    img.SetPixel(x + 1, y, Color.White);
-                                }
-                            }
-                        }
-                    }
 
-                }
-            }
+            // Copy the RGB values back to the bitmap
+            System.Runtime.InteropServices.Marshal.Copy(rgbValues, 0, ptr, bytes);
+
+            // Unlock the bits
+            img.UnlockBits(bmpData);
         }
+
+
         public static bool chekAng(Bitmap img, int x, int y)
         {
             return true;
@@ -312,360 +399,6 @@ namespace stencil
                     return new Point(pt.X - 1, pt.Y + 1);
                 default:
                     return pt;
-            }
-        }
-
-        public static void corFilB(Bitmap img)
-        {
-            for (int x = 1; x < img.Width - 5; x++)
-            {
-                for (int y = 3; y < img.Height - 5; y++)
-                {
-                    // black on x axis
-                    if (img.GetPixel(x, y) == bakCol
-                    )
-                    {
-                        if (img.GetPixel(x, y - 1) == foreCol && img.GetPixel(x - 1, y - 1) == foreCol)
-                        {
-                            if (img.GetPixel(x + 1, y) == foreCol && img.GetPixel(x + 1, y + 1) == foreCol)
-                            {
-                                img.SetPixel(x, y, Color.Black);
-                            }
-                        }
-                    }
-                    ///
-                    // black on x axis
-                    if (img.GetPixel(x, y) == bakCol
-                    )
-                    {
-                        if (img.GetPixel(x - 1, y) == foreCol && img.GetPixel(x - 1, y - 1) == foreCol)
-                        {
-                            if (img.GetPixel(x, y + 1) == foreCol && img.GetPixel(x + 1, y + 1) == foreCol)
-                            {
-                                img.SetPixel(x, y, Color.Black);
-                            }
-                        }
-                    }
-                    if (img.GetPixel(x, y) == bakCol
-                    )
-                    {
-                        if (img.GetPixel(x, y + 1) == foreCol && img.GetPixel(x - 1, y + 1) == foreCol)
-                        {
-                            if (img.GetPixel(x, y + 1) == foreCol && img.GetPixel(x + 1, y + 1) == foreCol)
-                            {
-                                img.SetPixel(x, y, Color.Black);
-                            }
-                        }
-                    }
-                    if (img.GetPixel(x, y) == bakCol
-                    )
-                    {
-                        if (img.GetPixel(x - 1, y) == foreCol && img.GetPixel(x - 1, y + 1) == foreCol)
-                        {
-                            if (img.GetPixel(x, y - 1) == foreCol && img.GetPixel(x + 1, y - 1) == foreCol)
-                            {
-                                img.SetPixel(x, y, Color.Black);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        public static void corFilW(Bitmap img)
-        {
-            for (int x = 1; x < img.Width - 5; x++)
-            {
-                for (int y = 3; y < img.Height - 5; y++)
-                {
-                    // black on x axis
-                    if (img.GetPixel(x, y) == foreCol)
-                    {
-                        if (img.GetPixel(x, y - 1) == bakCol
-                         && img.GetPixel(x - 1, y - 1) == bakCol
-                        )
-                        {
-                            if (img.GetPixel(x + 1, y) == bakCol
-                             && img.GetPixel(x + 1, y + 1) == bakCol
-                            )
-                            {
-                                img.SetPixel(x, y, Color.White);
-                            }
-                        }
-                    }
-                    ///
-                    // black on x axis
-                    if (img.GetPixel(x, y) == foreCol)
-                    {
-                        if (img.GetPixel(x - 1, y) == bakCol
-                         && img.GetPixel(x - 1, y - 1) == bakCol
-                        )
-                        {
-                            if (img.GetPixel(x, y + 1) == bakCol
-                             && img.GetPixel(x + 1, y + 1) == bakCol
-                            )
-                            {
-                                img.SetPixel(x, y, Color.White);
-                            }
-                        }
-                    }
-                    if (img.GetPixel(x, y) == foreCol)
-                    {
-                        if (img.GetPixel(x, y + 1) == bakCol
-                         && img.GetPixel(x - 1, y + 1) == bakCol
-                        )
-                        {
-                            if (img.GetPixel(x, y + 1) == bakCol
-                             && img.GetPixel(x + 1, y + 1) == bakCol
-                            )
-                            {
-                                img.SetPixel(x, y, Color.White);
-                            }
-                        }
-                    }
-                    if (img.GetPixel(x, y) == foreCol)
-                    {
-                        if (img.GetPixel(x - 1, y) == bakCol
-                         && img.GetPixel(x - 1, y + 1) == bakCol
-                        )
-                        {
-                            if (img.GetPixel(x, y - 1) == bakCol
-                             && img.GetPixel(x + 1, y - 1) == bakCol
-                            )
-                            {
-                                img.SetPixel(x, y, Color.White);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        public static void deGranB(Bitmap img, int granule)
-        {
-            for (int x = 1; x < img.Width - 5; x++)
-            {
-                for (int y = 3; y < img.Height - 5; y++)
-                {
-                    // black on x axis
-                    if (img.GetPixel(x, y) == foreCol)
-                    {
-
-                        if (img.GetPixel(x - 1, y) == bakCol
-                        )
-                        {
-                            if (img.GetPixel(x + 1, y) == bakCol
-                            )
-                            {
-                                if (chekAng(img, x, y))//check if there is a sharp angle
-                                {
-                                    {
-                                        img.SetPixel(x, y, Color.White);
-                                    }
-                                }
-                            }
-
-                            if (granule > 1)
-                            {
-                                if (img.GetPixel(x + 2, y) == bakCol
-                                )
-                                {
-                                    if (chekAng(img, x, y))
-                                    {
-                                        img.SetPixel(x, y, Color.White);
-                                        img.SetPixel(x + 1, y, Color.White);
-                                    }
-                                }
-                            }
-                            if (granule > 2)
-                            {
-                                if (img.GetPixel(x + 3, y) == bakCol
-                                )
-                                {
-                                    if (chekAng(img, x, y))
-                                    {
-                                        img.SetPixel(x, y, Color.White);
-                                        img.SetPixel(x + 1, y, Color.White);
-                                        img.SetPixel(x + 2, y, Color.White);
-                                    }
-                                }
-                            }
-                            if (granule > 3)
-                            {
-                                if (img.GetPixel(x + 4, y) == bakCol
-                                )
-                                {
-                                    if (chekAng(img, x, y))
-                                    {
-                                        img.SetPixel(x, y, Color.White);
-                                        img.SetPixel(x + 1, y, Color.White);
-                                        img.SetPixel(x + 2, y, Color.White);
-                                        img.SetPixel(x + 3, y, Color.White);
-                                    }
-                                }
-                            }
-                            if (granule > 4)
-                            {
-                                if (img.GetPixel(x + 5, y) == bakCol
-                                )
-                                {
-                                    img.SetPixel(x, y, Color.White);
-                                    img.SetPixel(x + 1, y, Color.White);
-                                    img.SetPixel(x + 2, y, Color.White);
-                                    img.SetPixel(x + 3, y, Color.White);
-                                    img.SetPixel(x + 4, y, Color.White);
-                                }
-                            }
-                        }
-                    }
-                    // black on y axis
-                    if (img.GetPixel(x, y) == bakCol
-                    )
-                    {
-                        if (img.GetPixel(x, y - 1) == bakCol
-                        )
-                        {
-                            if (img.GetPixel(x, y + 1) == bakCol
-                            )
-                            {
-                                img.SetPixel(x, y, Color.White);
-                            }
-
-                            if (granule > 1)
-                            {
-                                if (img.GetPixel(x, y + 2) == bakCol
-                                )
-                                {
-                                    img.SetPixel(x, y, Color.White);
-                                    img.SetPixel(x, y + 1, Color.White);
-                                }
-                            }
-                            if (granule > 2)
-                            {
-                                if (img.GetPixel(x, y + 3) == bakCol
-                                )
-                                {
-                                    img.SetPixel(x, y, Color.White);
-                                    img.SetPixel(x, y + 1, Color.White);
-                                    img.SetPixel(x, y + 2, Color.White);
-                                }
-                            }
-                            if (granule > 3)
-                            {
-                                if (img.GetPixel(x, y + 4) == bakCol
-                                )
-                                {
-                                    img.SetPixel(x, y, Color.White);
-                                    img.SetPixel(x, y + 1, Color.White);
-                                    img.SetPixel(x, y + 2, Color.White);
-                                    img.SetPixel(x, y + 3, Color.White);
-                                }
-                            }
-                            if (granule > 4)
-                            {
-                                if (img.GetPixel(x, y + 5) == bakCol
-                                )
-                                {
-                                    img.SetPixel(x, y, Color.White);
-                                    img.SetPixel(x, y + 1, Color.White);
-                                    img.SetPixel(x, y + 2, Color.White);
-                                    img.SetPixel(x, y + 3, Color.White);
-                                    img.SetPixel(x, y + 4, Color.White);
-                                }
-                            }
-                        }
-                    }
-
-
-                }
-            }
-        }
-        // degranulate white
-        public static void deGranW(Bitmap img, int granule)
-        {
-            for (int x = 1; x < img.Width - 4; x++)
-            {
-                for (int y = 1; y < img.Height - 4; y++)
-                {
-                    //white on x axis
-                    if (img.GetPixel(x, y) == bakCol
-                    )
-                    {
-
-                        if (img.GetPixel(x - 1, y) == foreCol)
-                        {
-                            if (img.GetPixel(x + 1, y) == foreCol)
-                            {
-                                img.SetPixel(x, y, Color.Black);
-                            }
-
-                            if (granule > 1)
-                            {
-                                if (img.GetPixel(x + 2, y) == foreCol)
-                                {
-                                    img.SetPixel(x, y, Color.Black);
-                                    img.SetPixel(x + 1, y, Color.Black);
-                                }
-                            }
-                            if (granule > 2)
-                            {
-                                if (img.GetPixel(x + 3, y) == foreCol)
-                                {
-                                    img.SetPixel(x, y, Color.Black);
-                                    img.SetPixel(x + 1, y, Color.Black);
-                                    img.SetPixel(x + 2, y, Color.Black);
-                                }
-                            }
-                            if (granule > 3)
-                            {
-                                if (img.GetPixel(x + 4, y) == foreCol)
-                                {
-                                    img.SetPixel(x, y, Color.Black);
-                                    img.SetPixel(x + 1, y, Color.Black);
-                                    img.SetPixel(x + 2, y, Color.Black);
-                                    img.SetPixel(x + 3, y, Color.Black);
-                                }
-                            }
-                        }
-                        /// white on y axis
-                        if (img.GetPixel(x, y - 1) == foreCol)
-                        {
-                            if (img.GetPixel(x, y + 1) == foreCol)
-                            {
-                                img.SetPixel(x, y, Color.Black);
-                            }
-
-                            if (granule > 1)
-                            {
-                                if (img.GetPixel(x, y + 2) == foreCol)
-                                {
-                                    img.SetPixel(x, y, Color.Black);
-                                    img.SetPixel(x, y + 1, Color.Black);
-                                }
-                            }
-                            if (granule > 2)
-                            {
-                                if (img.GetPixel(x, y + 3) == foreCol)
-                                {
-                                    img.SetPixel(x, y, Color.Black);
-                                    img.SetPixel(x, y + 1, Color.Black);
-                                    img.SetPixel(x, y + 2, Color.Black);
-                                }
-                            }
-                            if (granule > 3)
-                            {
-                                if (img.GetPixel(x, y + 4) == foreCol)
-                                {
-                                    img.SetPixel(x, y, Color.Black);
-                                    img.SetPixel(x, y + 1, Color.Black);
-                                    img.SetPixel(x, y + 2, Color.Black);
-                                    img.SetPixel(x, y + 3, Color.Black);
-
-                                }
-                            }
-                        }
-                    }
-
-                }
             }
         }
 
