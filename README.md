@@ -1,0 +1,1 @@
+The image is first converted to foreground and background colors based on pixel brightness. Pixel noise is then cleaned up, leaving a clean contours. From this, separate shapes are extracted and drawn as filled, closed curves.
