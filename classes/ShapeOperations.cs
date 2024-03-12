@@ -86,8 +86,7 @@ namespace stencil
 
         public static Point FindListShapeStart1(List<Point> outlinePoints = null)
         {
-            Point nullPt = new Point(0, 0); // Indicates no more shapes were found.
-
+            Point nullPt = new Point(0, 0); // return of this indicates no more shapes were found.
             for (int x = 6; x < workImage.Width - 5; x++)
             {
                 for (int y = 29; y < workImage.Height - 1; y++)
@@ -120,9 +119,9 @@ namespace stencil
             Point nullPt = new Point(0, 0);
             bool markedArea = false;
             bool wasLastPxMarked = false;
-            for (int x = 5; x < workImage.Width - 5; x++)
+            for (int x = 5; x < workImage.Width - 5; x++)//5
             {
-                for (int y = 29; y < workImage.Height - 1; y++)
+                for (int y = 29; y < workImage.Height - 1; y++)//29
                 {
                     if (outlinePoints != null)
                     {
